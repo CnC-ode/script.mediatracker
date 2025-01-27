@@ -1,3 +1,4 @@
+import xbmc
 import urllib.request
 import urllib.parse
 import json
@@ -52,4 +53,8 @@ def putJson(url: str, data: dict):
         headers=headers,
         method="PUT")
 
+    xbmc.log("###MediaTracker###: request => %s" % json.dumps(data), xbmc.LOGDEBUG)
+
     response = urllib.request.urlopen(httprequest)
+
+    xbmc.log("###MediaTracker###: response => %s" % response.status, xbmc.LOGDEBUG)
