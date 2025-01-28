@@ -26,23 +26,37 @@ class MarkAsSeenPayload(TypedDict):
 
 class MediaTracker:
     def __init__(self, url: str, apiToken: str) -> None:
+        if len(url) == 0:
+            xbmc.log("###MediaTracker###: request => missing MediaTracker url", xbmc.LOGINFO);
+            return
+
+        if len(apiToken) == 0:
+            xbmc.log("###MediaTracker###: request => missing api token", xbmc.LOGINFO);
+            return
+
         self.url = url
         self.apiToken = apiToken
+
+    def getUser(self):
+        url = urllib.parse.urljoin(
+            self.url, '/api/user?token=' + self.apiToken)
+
+        return sendGetRequest(url)
 
     def setProgress(self, payload: ProgressPayload):
         url = urllib.parse.urljoin(
             self.url, '/api/progress/by-external-id?token=' + self.apiToken)
 
-        putJson(url, payload)
+        sendPutRequest(url, payload)
 
     def markAsSeen(self, payload: MarkAsSeenPayload):
         url = urllib.parse.urljoin(
             self.url, '/api/seen/by-external-id?token=' + self.apiToken)
 
-        putJson(url, payload)
+        sendPutRequest(url, payload)
 
 
-def putJson(url: str, data: dict):
+def sendPutRequest(url: str, data: dict):
     postdata = json.dumps(data).encode()
 
     headers = {"Content-Type": "application/json; charset=UTF-8"}
@@ -53,8 +67,13 @@ def putJson(url: str, data: dict):
         headers=headers,
         method="PUT")
 
-    xbmc.log("###MediaTracker###: request => %s" % json.dumps(data), xbmc.LOGDEBUG)
+    xbmc.log("###MediaTracker###: request => %s" % json.dumps(data), xbmc.LOGDEBUG);
 
     response = urllib.request.urlopen(httprequest)
 
-    xbmc.log("###MediaTracker###: response => %s" % response.status, xbmc.LOGDEBUG)
+def sendGetRequest(url: str):
+    httprequest = urllib.request.Request(
+        url,
+        method="GET")
+
+    return urllib.request.urlopen(httprequest)

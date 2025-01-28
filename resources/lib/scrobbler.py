@@ -1,31 +1,23 @@
 import xbmc
-import xbmcaddon
 import xbmcgui
 import json
 from resources.lib.mediatracker import MediaTracker
+from resources.lib import utils
 
 class Scrobbler:
     def __init__(self) -> None:
-        self.__addon__ = xbmcaddon.Addon()
         self.player = xbmc.Player()
-        self.mediaTrackerClient = self.initMediaTrackerClient()
 
-    def initMediaTrackerClient(self):
-        apiToken = self.__addon__.getSettingString('apiToken')
-        mediatrackerUrl = self.__addon__.getSettingString('mediatrackerUrl')
+        self.reset()
 
-        if len(apiToken) == 0:
-            xbmc.log("###MediaTracker###: missing api token", xbmc.LOGINFO)
-            return
+        mediatrackerUrl = utils.getSetting('mediatrackerUrl')
+        apiToken = utils.getSetting('apiToken')
+        self.mediaTrackerClient = MediaTracker(mediatrackerUrl, apiToken)
 
-        if len(mediatrackerUrl) == 0:
-            xbmc.log("###MediaTracker###: missing MediaTracker url", xbmc.LOGINFO)
-            return
-
-        return MediaTracker(mediatrackerUrl, apiToken)
-
-    def resetScrobbler(self):
+    def reset(self):
+        self.isMediaTrackerClientConnected = False
         self.onProgress = False
+        self.onProgressError = False
         self.isScrollable = False
         self.mediaType = None
         self.id = None
@@ -39,44 +31,86 @@ class Scrobbler:
         self.currentTime = None
         self.duration = None
 
-    def startScrobbler(self):
-        if self.mediaTrackerClient == None:
-            xbmc.log("###MediaTracker###: cannot scrobble => mediaTrackerClient not initialized", xbmc.LOGINFO)
+    def start(self):
+        self.reset()
+
+        if self.mediaTrackerClient is None:
+            utils.logAndNotify("client not initialized", True)
             return
 
-        self.resetScrobbler()
+        try:
+            res = self.mediaTrackerClient.getUser()
+            if res and res.status == 200:
+                user = json.loads(res.read().decode(res.headers.get_content_charset()))
+                utils.logAndNotify(f"user \"{user['name']}\" authorized", False)
+                self.isMediaTrackerClientConnected = True
+        except Exception as e:
+            utils.logAndNotify(f"error connecting client {e}, {type(e)}", False)
+            pass
+
+        if not self.isMediaTrackerClientConnected:
+            utils.logAndNotify("client connection failed", False)
+            return
 
         self.onProgress = True
         self.isScrollable = self.getPlayingItemData()
 
+        utils.logAndNotify(f"onProgress {self.onProgress}", False)
+        utils.logAndNotify(f"isScrollable {self.isScrollable}", False)
+        utils.logAndNotify(f"mediaType {self.mediaType}", False)
+        utils.logAndNotify(f"id {self.id}", False)
+        utils.logAndNotify(f"tmdbId {self.tmdbId}", False)
+        utils.logAndNotify(f"imdbId {self.imdbId}", False)
+        utils.logAndNotify(f"title {self.title}", False)
+        utils.logAndNotify(f"tvShowTitle {self.tvShowTitle}", False)
+        utils.logAndNotify(f"seasonNumber {self.seasonNumber}", False)
+        utils.logAndNotify(f"episodeNumber {self.episodeNumber}", False)
+        utils.logAndNotify(f"progress {self.progress}", False)
+        utils.logAndNotify(f"currentTime {self.currentTime}", False)
+        utils.logAndNotify(f"duration {self.duration}", False)
+
         if not self.isScrollable:
-            xbmc.log("###MediaTracker###: cannot scrobble => item is not scrollable", xbmc.LOGINFO)
+            utils.logAndNotify("item is not scrollable", True)
             return
 
         self.scrobble()
 
-    def pauseScrobbler(self):
+    def pause(self):
+        if not self.isScrollable:
+            return
+
         self.onProgress = False
         self.scrobbleProgress()
 
-    def resumeScrobbler(self):
+    def resume(self):
+        if not self.isScrollable:
+            return
+
         self.onProgress = True
         self.scrobble()
-        self.sendProgress()
+        # self.sendProgress()
 
-    def seekScrobbler(self):
+    def seek(self):
+        if not self.isScrollable:
+            return
+
         self.scrobbleProgress()
 
-    def stopScrobbler(self):
-        self.onProgress = False
+    def stop(self):
+        if not self.isScrollable:
+            return
+
 
         if self.progress > 0.85:
             self.progress = 1
-            self.sendProgress()
-
-    def endScrobbler(self):
         self.onProgress = False
+        self.sendProgress()
 
+    def end(self):
+        if not self.isScrollable:
+            return
+
+        self.onProgress = False
         self.progress = 1
         self.sendProgress()
 
@@ -100,19 +134,19 @@ class Scrobbler:
 
         if self.mediaType == "episode":
             # second try
-            if self.tmdbId == None and self.imdbId == None:
-                res = kodiJsonRequest('VideoLibrary.GetEpisodeDetails', {
+            if not self.tmdbId and not self.imdbId:
+                res = utils.kodiJsonRequest('VideoLibrary.GetEpisodeDetails', {
                     'episodeid': self.id,
                     'properties': ['tvshowid']
                 })
 
                 tvShowId = res.get("episodedetails", {}).get("tvshowid")
 
-                if tvShowId == None:
-                    xbmc.log("###MediaTracker###: missing tvShowId for episode " + self.title, xbmc.LOGINFO)
+                if not tvShowId:
+                    utils.logAndNotify("missing tvShowId for episode " + self.title, False)
                     return False
 
-                res = kodiJsonRequest('VideoLibrary.GetTVShowDetails', {
+                res = utils.kodiJsonRequest('VideoLibrary.GetTVShowDetails', {
                     'tvshowid': tvShowId,
                     'properties': ['uniqueid']
                 })
@@ -121,17 +155,20 @@ class Scrobbler:
                 self.imdbId = res.get("tvshowdetails", {}).get("uniqueid", {}).get("imdb")
             
             # gave up
-            if self.tmdbId == None and self.imdbId == None:
-                xbmc.log(f"###MediaTracker###: missing tmdbId and imdbId for episode of \"{self.title}\"", xbmc.LOGINFO)
+            if not self.tmdbId and not self.imdbId:
+                utils.logAndNotify(f"missing tmdbId and imdbId for episode of \"{self.title}\"", False)
                 return False
 
             self.seasonNumber = videoInfoTag.getSeason()
             self.episodeNumber = videoInfoTag.getEpisode()
 
         elif self.mediaType == "movie":
-            if self.tmdbId == None and self.imdbId == None:
-                xbmc.log(f"###MediaTracker###: missing tmdbId and imdbId for \"{self.title}\"", xbmc.LOGINFO)
+            if not self.tmdbId and not self.imdbId:
+                utils.logAndNotify(f"missing tmdbId and imdbId for \"{self.title}\"", False)
                 return False
+        else:
+            utils.logAndNotify(f"media type is not scrollable \"{self.title}\"", False)
+            return False
 
         return True
 
@@ -159,34 +196,26 @@ class Scrobbler:
 
     def sendProgress(self):
         if self.mediaType == "episode":
-            xbmc.log(f"###MediaTracker###: updating progress for tv show \"{self.tvShowTitle}\" {self.seasonNumber}x{self.episodeNumber} - {self.progress * 100:.2f}%", xbmc.LOGINFO)
+            utils.logAndNotify(f"updating progress for tv show \"{self.tvShowTitle}\" {self.seasonNumber}x{self.episodeNumber} - {self.progress * 100:.2f}%", False)
         elif self.mediaType == "movie":
-            xbmc.log(f"###MediaTracker###: updating progress for movie \"{self.title}\" - {self.progress * 100:.2f}%", xbmc.LOGINFO)
+            utils.logAndNotify(f"updating progress for movie \"{self.title}\" - {self.progress * 100:.2f}%", False)
 
-        self.mediaTrackerClient.setProgress({
-            "mediaType": self.mediaType if self.mediaType == "movie" else "tv",
-            "id": {
-                "imdbId": self.imdbId,
-                "tmdbId": self.tmdbId
-            },
-            "seasonNumber": self.seasonNumber,
-            "episodeNumber": self.episodeNumber,
-            "progress": self.progress,
-            "duration": self.duration * 1000,
-            "action": "playing" if self.onProgress else "paused"
-        })
-
-def kodiJsonRequest(method: str, params: dict):
-    args = {
-        'jsonrpc': '2.0',
-        'method': method,
-        'params': params,
-        'id': 1
-    }
-    request = xbmc.executeJSONRPC(json.dumps(args))
-    response = json.loads(request)
-
-    if not isinstance(response, dict):
-        return {}
-
-    return response.get('result', {})
+        try:
+            self.mediaTrackerClient.setProgress({
+                "mediaType": self.mediaType if self.mediaType == "movie" else "tv",
+                "id": {
+                    "imdbId": self.imdbId,
+                    "tmdbId": self.tmdbId
+                },
+                "seasonNumber": self.seasonNumber,
+                "episodeNumber": self.episodeNumber,
+                "progress": self.progress,
+                "duration": self.duration * 1000,
+                "action": "playing" if self.onProgress else "paused"
+            })
+            if self.onProgressError:
+                utils.logAndNotify(f"scrobbler restablished", True)
+            self.onProgressError = False
+        except Exception as e:
+            utils.logAndNotify(f"error sending progress {e=}, {type(e)=}", not self.onProgressError)
+            self.onProgressError = True
