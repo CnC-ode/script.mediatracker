@@ -29,3 +29,6 @@ def logAndNotify(message, notify):
 
 def getSetting(setting):
     return __addon__.getSetting(setting).strip()
+
+def getInfoLabel(label):
+    return xbmc.getInfoLabel(label)

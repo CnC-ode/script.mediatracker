@@ -1,18 +1,16 @@
 import xbmc
 import xbmcgui
 import json
+
 from resources.lib.mediatracker import MediaTracker
 from resources.lib import utils
 
 class Scrobbler:
     def __init__(self) -> None:
         self.player = xbmc.Player()
-
+        self.instanceName = utils.getInfoLabel('System.FriendlyName')
+        
         self.reset()
-
-        mediatrackerUrl = utils.getSetting('mediatrackerUrl')
-        apiToken = utils.getSetting('apiToken')
-        self.mediaTrackerClient = MediaTracker(mediatrackerUrl, apiToken)
 
     def reset(self):
         self.isMediaTrackerClientConnected = False
@@ -34,22 +32,18 @@ class Scrobbler:
     def start(self):
         self.reset()
 
+        mediatrackerUrl = utils.getSetting('mediatrackerUrl')
+        apiToken = utils.getSetting('apiToken')
+        self.mediaTrackerClient = MediaTracker(mediatrackerUrl, apiToken)
+
         if self.mediaTrackerClient is None:
             utils.logAndNotify("client not initialized", True)
             return
 
-        try:
-            res = self.mediaTrackerClient.getUser()
-            if res and res.status == 200:
-                user = json.loads(res.read().decode(res.headers.get_content_charset()))
-                utils.logAndNotify(f"user \"{user['name']}\" authorized", False)
-                self.isMediaTrackerClientConnected = True
-        except Exception as e:
-            utils.logAndNotify(f"error connecting client {e}, {type(e)}", False)
-            pass
+        self.isMediaTrackerClientConnected = self.mediaTrackerClient.validateConnection()
 
         if not self.isMediaTrackerClientConnected:
-            utils.logAndNotify("client connection failed", False)
+            utils.logAndNotify("client connection failed", True)
             return
 
         self.onProgress = True
@@ -211,7 +205,8 @@ class Scrobbler:
                 "episodeNumber": self.episodeNumber,
                 "progress": self.progress,
                 "duration": self.duration * 1000,
-                "action": "playing" if self.onProgress else "paused"
+                "action": "playing" if self.onProgress else "paused",
+                "device": self.instanceName
             })
             if self.onProgressError:
                 utils.logAndNotify(f"scrobbler restablished", True)
