@@ -6,8 +6,6 @@ class Monitor(xbmc.Monitor):
         xbmc.Monitor.__init__(self)
 
     # def onNotification(self, sender, method, dataJson):
-        # xbmc.log("###MediaTracker###: onNotification => %s" % method, xbmc.LOGINFO);
-        
         # if not method in [
         #     'Player.OnPlay',
         #     'Player.OnPause',

@@ -1,14 +1,14 @@
 import xbmc
+
 from resources.lib.monitor import Monitor
 from resources.lib.player import Player
+from resources.lib import utils
 
-xbmc.log("###MediaTracker###: starting", xbmc.LOGINFO)
+utils.logAndNotify("Starting", xbmc.LOGINFO, False)
 
 player = Player()
-
 monitor = Monitor()
-while not monitor.abortRequested():
-    if monitor.waitForAbort(30):
-        break
 
-xbmc.log("###MediaTracker###: exiting", xbmc.LOGINFO)
+monitor.waitForAbort()
+
+utils.logAndNotify("Exiting", xbmc.LOGINFO, False)

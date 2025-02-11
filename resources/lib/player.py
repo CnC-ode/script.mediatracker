@@ -1,35 +1,37 @@
 import xbmc
+
 from resources.lib.scrobbler import Scrobbler
+from resources.lib import utils
 
 class Player(xbmc.Player):
     def __init__(self):
-        self.scrobbler = Scrobbler()
-        xbmc.log('#cnc# Player initialized', xbmc.LOGINFO)
+        self.scrobbler = Scrobbler(self)
+        utils.logAndNotify("Player initialized", xbmc.LOGINFO, False)
 
     def onAVStarted(self):
-        xbmc.log("###MediaTracker###: Player => starting scrobbler", xbmc.LOGINFO)
+        utils.logAndNotify("Starting scrobbler", xbmc.LOGINFO, False)
         self.scrobbler.start()
 
     def onPlayBackPaused(self):
-        xbmc.log("###MediaTracker###: Player => pausing scrobbler", xbmc.LOGINFO)
+        utils.logAndNotify("Pausing scrobbler", xbmc.LOGINFO, False)
         self.scrobbler.pause()
 
     def onPlayBackResumed(self):
-        xbmc.log("###MediaTracker###: Player => resuming scrobbler", xbmc.LOGINFO)
+        utils.logAndNotify("Resuming scrobbler", xbmc.LOGINFO, False)
         self.scrobbler.resume()
 
     def onPlayBackSeek(self, time, offset):
-        xbmc.log("###MediaTracker###: Player => seeking", xbmc.LOGINFO)
+        utils.logAndNotify("Seeking", xbmc.LOGINFO, False)
         self.scrobbler.seek()
 
     def onPlayBackSeekChapter(self, chapter):
-        xbmc.log("###MediaTracker###: Player => seeking chapter", xbmc.LOGINFO)
+        utils.logAndNotify("Seeking chapter", xbmc.LOGINFO, False)
         self.scrobbler.seek()
 
     def onPlayBackStopped(self):
-        xbmc.log("###MediaTracker###: Player => stopping scrobbler", xbmc.LOGINFO)
+        utils.logAndNotify("Stopping scrobbler", xbmc.LOGINFO, False)
         self.scrobbler.stop()
 
     def onPlayBackEnded(self):
-        xbmc.log("###MediaTracker###: Player => ending scrobbler", xbmc.LOGINFO)
+        utils.logAndNotify("Ending scrobbler", xbmc.LOGINFO, False)
         self.scrobbler.end()

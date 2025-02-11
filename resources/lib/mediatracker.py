@@ -30,11 +30,11 @@ class MarkAsSeenPayload(TypedDict):
 class MediaTracker:
     def __init__(self, url: str, apiToken: str) -> None:
         if len(url) == 0:
-            xbmc.log("###MediaTracker###: request => missing MediaTracker url", xbmc.LOGINFO)
+            utils.logAndNotify("Missing MediaTracker url", xbmc.LOGERROR, True);
             return
 
         if len(apiToken) == 0:
-            xbmc.log("###MediaTracker###: request => missing api token", xbmc.LOGINFO)
+            utils.logAndNotify("Missing MediaTracker api token", xbmc.LOGERROR, True);
             return
 
         self.url = url
@@ -48,12 +48,12 @@ class MediaTracker:
                 resContentCharset = res.headers.get_content_charset()
                 if resContent and resContentCharset:
                     user = json.loads(resContent.decode(resContentCharset))
-                    utils.logAndNotify(f"user \"{user['name']}\" authorized", False)
+                    # utils.logAndNotify(f"User \"{user['name']}\" authorized", xbmc.LOGINFO, False)
                     return True
                 else:
-                    raise Exception("unauthorized")
+                    raise Exception("Unauthorized")
         except Exception as e:
-            utils.logAndNotify(f"error connecting client {e}, {type(e)}", False)
+            utils.logAndNotify(f"Error connecting client {e=}, {type(e)=}", xbmc.LOGERROR, True)
             return False
 
 
@@ -87,7 +87,7 @@ def sendPutRequest(url: str, data: dict):
         headers=headers,
         method="PUT")
 
-    xbmc.log("###MediaTracker###: request => %s" % json.dumps(data), xbmc.LOGDEBUG)
+    # utils.logAndNotify(f"sendPutRequest => \"{json.dumps(data)}\"", xbmc.LOGINFO, False)
 
     response = urllib.request.urlopen(httprequest)
 

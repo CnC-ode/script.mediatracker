@@ -6,17 +6,18 @@ from resources.lib.mediatracker import MediaTracker
 from resources.lib import utils
 
 class Scrobbler:
-    def __init__(self) -> None:
-        self.player = xbmc.Player()
+    def __init__(self, player) -> None:
+        self.player = player
+        self.scrobbleMonitor = xbmc.Monitor()
         self.instanceName = utils.getInfoLabel('System.FriendlyName')
-        
-        self.reset()
+        utils.logAndNotify("Scrobbler initialized", xbmc.LOGINFO, False)
 
     def reset(self):
         self.isMediaTrackerClientConnected = False
         self.onProgress = False
         self.onProgressError = False
         self.isScrollable = False
+        self.scrobbleInterval = utils.getSettingAsInt('scrobbleInterval')
         self.mediaType = None
         self.id = None
         self.tmdbId = None
@@ -37,34 +38,34 @@ class Scrobbler:
         self.mediaTrackerClient = MediaTracker(mediatrackerUrl, apiToken)
 
         if self.mediaTrackerClient is None:
-            utils.logAndNotify("client not initialized", True)
+            utils.logAndNotify("Client initialization failed", xbmc.LOGERROR, True)
             return
 
         self.isMediaTrackerClientConnected = self.mediaTrackerClient.validateConnection()
 
         if not self.isMediaTrackerClientConnected:
-            utils.logAndNotify("client connection failed", True)
+            utils.logAndNotify("Client connection failed", xbmc.LOGERROR, True)
             return
 
         self.onProgress = True
         self.isScrollable = self.getPlayingItemData()
 
-        utils.logAndNotify(f"onProgress {self.onProgress}", False)
-        utils.logAndNotify(f"isScrollable {self.isScrollable}", False)
-        utils.logAndNotify(f"mediaType {self.mediaType}", False)
-        utils.logAndNotify(f"id {self.id}", False)
-        utils.logAndNotify(f"tmdbId {self.tmdbId}", False)
-        utils.logAndNotify(f"imdbId {self.imdbId}", False)
-        utils.logAndNotify(f"title {self.title}", False)
-        utils.logAndNotify(f"tvShowTitle {self.tvShowTitle}", False)
-        utils.logAndNotify(f"seasonNumber {self.seasonNumber}", False)
-        utils.logAndNotify(f"episodeNumber {self.episodeNumber}", False)
-        utils.logAndNotify(f"progress {self.progress}", False)
-        utils.logAndNotify(f"currentTime {self.currentTime}", False)
-        utils.logAndNotify(f"duration {self.duration}", False)
+        # utils.logAndNotify(f"onProgress {self.onProgress}", xbmc.LOGINFO, False)
+        # utils.logAndNotify(f"isScrollable {self.isScrollable}", xbmc.LOGINFO, False)
+        # utils.logAndNotify(f"mediaType {self.mediaType}", xbmc.LOGINFO, False)
+        # utils.logAndNotify(f"id {self.id}", xbmc.LOGINFO, False)
+        # utils.logAndNotify(f"tmdbId {self.tmdbId}", xbmc.LOGINFO, False)
+        # utils.logAndNotify(f"imdbId {self.imdbId}", xbmc.LOGINFO, False)
+        # utils.logAndNotify(f"title {self.title}", xbmc.LOGINFO, False)
+        # utils.logAndNotify(f"tvShowTitle {self.tvShowTitle}", xbmc.LOGINFO, False)
+        # utils.logAndNotify(f"seasonNumber {self.seasonNumber}", xbmc.LOGINFO, False)
+        # utils.logAndNotify(f"episodeNumber {self.episodeNumber}", xbmc.LOGINFO, False)
+        # utils.logAndNotify(f"progress {self.progress}", xbmc.LOGINFO, False)
+        # utils.logAndNotify(f"currentTime {self.currentTime}", xbmc.LOGINFO, False)
+        # utils.logAndNotify(f"duration {self.duration}", xbmc.LOGINFO, False)
 
         if not self.isScrollable:
-            utils.logAndNotify("item is not scrollable", True)
+            utils.logAndNotify("Item is not scrollable", xbmc.LOGINFO, False)
             return
 
         self.scrobble()
@@ -81,19 +82,18 @@ class Scrobbler:
             return
 
         self.onProgress = True
-        self.scrobble()
-        # self.sendProgress()
+        self.sendProgress()
 
     def seek(self):
         if not self.isScrollable:
             return
 
+        xbmc.sleep(500)
         self.scrobbleProgress()
 
     def stop(self):
         if not self.isScrollable:
             return
-
 
         if self.progress > 0.85:
             self.progress = 1
@@ -137,7 +137,7 @@ class Scrobbler:
                 tvShowId = res.get("episodedetails", {}).get("tvshowid")
 
                 if not tvShowId:
-                    utils.logAndNotify("missing tvShowId for episode " + self.title, False)
+                    utils.logAndNotify("Missing tvShowId for episode " + self.title, xbmc.LOGINFO, False)
                     return False
 
                 res = utils.kodiJsonRequest('VideoLibrary.GetTVShowDetails', {
@@ -150,7 +150,7 @@ class Scrobbler:
             
             # gave up
             if not self.tmdbId and not self.imdbId:
-                utils.logAndNotify(f"missing tmdbId and imdbId for episode of \"{self.title}\"", False)
+                utils.logAndNotify(f"Missing tmdbId and imdbId for episode of \"{self.title}\"", xbmc.LOGINFO, False)
                 return False
 
             self.seasonNumber = videoInfoTag.getSeason()
@@ -158,18 +158,23 @@ class Scrobbler:
 
         elif self.mediaType == "movie":
             if not self.tmdbId and not self.imdbId:
-                utils.logAndNotify(f"missing tmdbId and imdbId for \"{self.title}\"", False)
+                utils.logAndNotify(f"missing tmdbId and imdbId for \"{self.title}\"", xbmc.LOGINFO, False)
                 return False
         else:
-            utils.logAndNotify(f"media type is not scrollable \"{self.title}\"", False)
+            utils.logAndNotify(f"Media type is not scrollable \"{self.title}\"", xbmc.LOGINFO, False)
             return False
 
         return True
 
     def scrobble(self):
-        while self.player.isPlaying() and self.onProgress and self.isScrollable:
-            self.scrobbleProgress()
-            xbmc.sleep(5000)
+        while self.player.isPlaying():
+            if self.onProgress:
+                self.scrobbleProgress()
+
+            if self.scrobbleMonitor.waitForAbort(self.scrobbleInterval):
+                self.onProgress = False
+                self.sendProgress()
+                break;
 
     def scrobbleProgress(self):
         if self.player.isPlaying():
@@ -189,13 +194,13 @@ class Scrobbler:
             self.sendProgress()
 
     def sendProgress(self):
-        if self.mediaType == "episode":
-            utils.logAndNotify(f"updating progress for tv show \"{self.tvShowTitle}\" {self.seasonNumber}x{self.episodeNumber} - {self.progress * 100:.2f}%", False)
-        elif self.mediaType == "movie":
-            utils.logAndNotify(f"updating progress for movie \"{self.title}\" - {self.progress * 100:.2f}%", False)
+        # if self.mediaType == "episode":
+        #     utils.logAndNotify(f"Updating progress for tv show \"{self.tvShowTitle}\" {self.seasonNumber}x{self.episodeNumber} - {self.progress * 100:.2f}%", xbmc.LOGINFO, False)
+        # elif self.mediaType == "movie":
+        #     utils.logAndNotify(f"Updating progress for movie \"{self.title}\" - {self.progress * 100:.2f}%", xbmc.LOGINFO, False)
 
         try:
-            self.mediaTrackerClient.setProgress({
+            progressBody = {
                 "mediaType": self.mediaType if self.mediaType == "movie" else "tv",
                 "id": {
                     "imdbId": self.imdbId,
@@ -207,10 +212,14 @@ class Scrobbler:
                 "duration": self.duration * 1000,
                 "action": "playing" if self.onProgress else "paused",
                 "device": self.instanceName
-            })
+            }
+            
+            self.mediaTrackerClient.setProgress(progressBody)
+            
             if self.onProgressError:
-                utils.logAndNotify(f"scrobbler restablished", True)
-            self.onProgressError = False
+                utils.logAndNotify(f"Scrobbler restablished", xbmc.LOGINFO, True)
+                self.onProgressError = False
+
         except Exception as e:
-            utils.logAndNotify(f"error sending progress {e=}, {type(e)=}", not self.onProgressError)
+            utils.logAndNotify(f"Error sending progress {e=}, {type(e)=}", xbmc.LOGERROR, not self.onProgressError)
             self.onProgressError = True

@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <settings>
     <category label="32001">
-        <setting label="32011" type="text" id="apiToken" default="" />
-        <setting label="32012" type="text" id="mediatrackerUrl" default="http://localhost:7481" />
+        <setting label="32100" type="lsep" />
+        <setting label="32101" type="text" id="mediatrackerUrl" default="http://localhost:7481" />
+        <setting label="32102" type="text" id="apiToken" default="" />
+        <setting label="32200" type="lsep" />
+        <setting label="32201" type="number" id="scrobbleInterval" default="30" />
+        <setting label="32202" type="bool" id="notifyError" default="false"/>
     </category>
 </settings>
